@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>TASATOP — Cronograma de Inversión</title>
+
+  <link rel="stylesheet" href="./styles.css" />
+
+  <!-- jsPDF + AutoTable (CDN permitido) -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js" defer></script>
+
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img id="brandLogo" class="brand__logo" alt="TASATOP logo" />
+      <div class="brand__text">
+        <div class="brand__name">TASATOP</div>
+        <div class="brand__subtitle">Cronograma de Inversión</div>
+      </div>
+    </div>
+
+    <div class="topbar__meta">
+      <div class="meta__label">Generado</div>
+      <div id="generatedAt" class="meta__value">—</div>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="layout">
+      <!-- Panel de inputs -->
+      <aside class="card card--form">
+        <div class="card__header">
+          <h2 class="card__title">Datos de la inversión</h2>
+          <p class="card__hint">Los cálculos replican el VBA (misma lógica, mismos redondeos).</p>
+        </div>
+
+        <div id="errorSummary" class="alert alert--error" hidden>
+          <div class="alert__title">Corrige los siguientes campos:</div>
+          <ul id="errorSummaryList" class="alert__list"></ul>
+        </div>
+
+        <form id="form" novalidate>
+          <div class="grid">
+            <div class="field">
+              <label for="fechaInicio">Fecha de inicio</label>
+              <input id="fechaInicio" name="fechaInicio" type="date" />
+              <div class="field__error" data-error-for="fechaInicio"></div>
+            </div>
+
+            <div class="field">
+              <label for="monto">Monto</label>
+              <input id="monto" name="monto" type="number" step="0.01" inputmode="decimal" placeholder="100000" />
+              <div class="field__error" data-error-for="monto"></div>
+            </div>
+
+            <div class="field">
+              <label for="moneda">Moneda</label>
+              <select id="moneda" name="moneda">
+                <option value="S/">S/</option>
+                <option value="$">$</option>
+              </select>
+              <div class="field__error" data-error-for="moneda"></div>
+            </div>
+
+            <div class="field">
+              <label for="tasaEA">Tasa efectiva anual (%)</label>
+              <input id="tasaEA" name="tasaEA" type="number" step="0.0001" inputmode="decimal" placeholder="18" />
+              <div class="field__error" data-error-for="tasaEA"></div>
+            </div>
+
+            <div class="field">
+              <label for="plazo">Plazo (meses)</label>
+              <input id="plazo" name="plazo" type="number" step="1" inputmode="numeric" placeholder="15" />
+              <div class="field__error" data-error-for="plazo"></div>
+            </div>
+
+            <div class="field">
+              <label for="producto">Producto</label>
+              <select id="producto" name="producto">
+                <option value="">— Selecciona —</option>
+                <option value="IKB">IKB</option>
+                <option value="ALI">ALI</option>
+                <option value="PET">PET</option>
+                <option value="M&L">M&L</option>
+                <option value="OTROS">Otros</option>
+              </select>
+              <div class="field__error" data-error-for="producto"></div>
+            </div>
+
+            <div class="field">
+              <label for="freqInteres">Frecuencia de pago de intereses</label>
+              <select id="freqInteres" name="freqInteres">
+                <option value="">— Selecciona —</option>
+                <option>Mensual</option>
+                <option>Bimestral</option>
+                <option>Trimestral</option>
+                <option>Semestral</option>
+                <option>Anual</option>
+                <option>Al finalizar</option>
+              </select>
+              <div class="field__error" data-error-for="freqInteres"></div>
+            </div>
+
+            <div class="field">
+              <label for="freqCapital">Frecuencia de devolución de capital</label>
+              <select id="freqCapital" name="freqCapital">
+                <option value="">— Selecciona —</option>
+                <option>Mensual</option>
+                <option>Bimestral</option>
+                <option>Trimestral</option>
+                <option>Semestral</option>
+                <option>Anual</option>
+                <option>Al finalizar</option>
+              </select>
+              <div class="field__error" data-error-for="freqCapital"></div>
+            </div>
+
+            <div class="field">
+              <label for="opcionPrimerPago">Opción primer pago (B10)</label>
+              <select id="opcionPrimerPago" name="opcionPrimerPago">
+                <option value="Próximo mes">Próximo mes</option>
+                <option value="Mes de inversión">Mes de inversión</option>
+              </select>
+              <div class="field__error" data-error-for="opcionPrimerPago"></div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="btnGenerar" type="submit" class="btn btn--primary">
+              Generar cronograma
+            </button>
+            <button id="btnLimpiar" type="button" class="btn btn--ghost">
+              Limpiar
+            </button>
+          </div>
+
+          <div class="actions actions--secondary">
+            <button id="btnPdf" type="button" class="btn btn--secondary" disabled>
+              Exportar PDF (A4 horizontal)
+            </button>
+          </div>
+
+          <div id="logoWarning" class="note" hidden>
+            No se pudo embebir el logo (CORS). El PDF saldrá sin logo.
+          </div>
+        </form>
+      </aside>
+
+      <!-- Resultados -->
+      <section class="card card--result">
+        <div class="card__header">
+          <h2 class="card__title">Resultado</h2>
+          <p class="card__hint">Incluye Mes 0, fechas ajustadas al último día del mes si aplica, impuesto 5%, y redondeo VBA.</p>
+        </div>
+
+        <div id="resumen" class="summary" hidden>
+          <div class="summary__grid">
+            <div class="summary__item">
+              <div class="summary__label">TA</div>
+              <div id="sumTA" class="summary__value">—</div>
+            </div>
+            <div class="summary__item">
+              <div class="summary__label">Monto invertido</div>
+              <div id="sumMonto" class="summary__value">—</div>
+            </div>
+            <div class="summary__item">
+              <div class="summary__label">Producto</div>
+              <div id="sumProducto" class="summary__value">—</div>
+            </div>
+            <div class="summary__item">
+              <div class="summary__label">Plazo</div>
+              <div id="sumPlazo" class="summary__value">—</div>
+            </div>
+
+            <div class="summary__item summary__item--wide">
+              <div class="summary__label">Frecuencia (interés)</div>
+              <div id="sumFreqInt" class="summary__value">—</div>
+            </div>
+            <div class="summary__item summary__item--wide">
+              <div class="summary__label">Tipo tasa</div>
+              <div class="summary__value">Tasa Efectiva Anual</div>
+            </div>
+            <div class="summary__item summary__item--wide">
+              <div class="summary__label">Devolución de capital</div>
+              <div id="sumFreqCap" class="summary__value">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="tableWrap" id="tableWrap" hidden>
+          <table class="table" id="tabla">
+            <thead>
+              <tr>
+                <th>Mes</th>
+                <th>Fecha de cronograma (1)</th>
+                <th>Fecha de pago (2)</th>
+                <th>Días</th>
+                <th id="thMontoBase">Monto base</th>
+                <th id="thIntBruto">Interés bruto</th>
+                <th id="thImpuesto">Impuesto 2da categ.</th>
+                <th id="thIntDep">Interés a depositar</th>
+                <th id="thDevCap">Devolución capital</th>
+                <th id="thSaldo">Saldo capital</th>
+                <th id="thTotal">Total a depositar</th>
+              </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+            <tfoot id="tfoot"></tfoot>
+          </table>
+        </div>
+
+        <div id="emptyState" class="empty">
+          Genera el cronograma para ver la tabla y exportar a PDF.
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <span class="dot"></span>
+      <span>Estilo TASATOP • Lógica replicada del VBA</span>
+    </div>
+  </footer>
+</body>
+</html>
