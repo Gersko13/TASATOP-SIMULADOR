@@ -2,11 +2,10 @@
    TASATOP — Cronograma de Inversión (Replica VBA)
    - Sin frameworks
    - Lógica financiera separada (funciones puras)
-   - UI/DOM separado
+   - UI/DOM separado12
    - Export PDF con logo embebido (dataURL)
 ========================================================= */
 
-/** ===== CONFIG ===== */
 const LOGO_URL = "https://tasatop.com.pe/wp-content/uploads/elementor/thumbs/logos-17-r320c27cra7m7te2fafiia4mrbqd3aqj7ifttvy33g.png";
 const TASA_IMPUESTO_2DA = 0.05;
 
@@ -44,7 +43,7 @@ const thSaldo = document.getElementById("thSaldo");
 const thTotal = document.getElementById("thTotal");
 
 /** ===== STATE ===== */
-let lastResult = null; // { inputs, rows, totals, generatedAtISO, logoDataUrl }
+let lastResult = null; // { inputs, result, generatedAt, logoDataUrl }
 
 /** ===== INIT ===== */
 setGeneratedNow();
@@ -54,30 +53,22 @@ loadLogoToUI();
    UTILIDADES — replicando VBA
 ========================================================= */
 
-/** MonedaSimbolo(ByVal moneda As String) */
 function monedaSimbolo(moneda) {
   const m = String(moneda ?? "").trim().toUpperCase();
   if (m === "") return "S/.";
   if (m.includes("$") || m.includes("USD") || m.includes("DOL")) return "$";
   if (m.includes("S/") || m.includes("SOL")) return "S/.";
-  return String(moneda ?? "").trim(); // si viene raro, lo respeta
+  return String(moneda ?? "").trim();
 }
 
-/** NormalizarClave: mayúsculas + sin tildes */
 function normalizarClave(s) {
   let x = String(s ?? "").trim().toUpperCase();
-
-  const map = {
-    "Á":"A","É":"E","Í":"I","Ó":"O","Ú":"U",
-    "Ü":"U","Ñ":"N"
-  };
+  const map = { "Á":"A","É":"E","Í":"I","Ó":"O","Ú":"U","Ü":"U","Ñ":"N" };
   x = x.replace(/[ÁÉÍÓÚÜÑ]/g, (ch) => map[ch] || ch);
-
   while (x.includes("  ")) x = x.replace(/  /g, " ");
   return x;
 }
 
-/** ObtenerDiaPago(producto) */
 function obtenerDiaPago(producto) {
   switch (normalizarClave(producto)) {
     case "IKB": return 15;
@@ -88,7 +79,6 @@ function obtenerDiaPago(producto) {
   }
 }
 
-/** FrecuenciaAMeses(frecuencia, plazoMeses) */
 function frecuenciaAMeses(frecuencia, plazoMeses) {
   switch (normalizarClave(frecuencia)) {
     case "MENSUAL": return 1;
@@ -101,12 +91,10 @@ function frecuenciaAMeses(frecuencia, plazoMeses) {
   }
 }
 
-/** Excel/VBA Round(x,2): banker’s rounding (ties to even) */
+/** VBA Round(x,2): banker’s rounding (ties to even) */
 function vbaRound(value, decimals = 0) {
-  // Maneja negativos y casos tie 0.5 a par
   const factor = Math.pow(10, decimals);
   const x = value * factor;
-
   if (!isFinite(x)) return value;
 
   const sign = x < 0 ? -1 : 1;
@@ -115,23 +103,16 @@ function vbaRound(value, decimals = 0) {
   const floor = Math.floor(ax);
   const diff = ax - floor;
 
-  // tolerancia por floating
   const EPS = 1e-12;
 
   let rounded;
-  if (diff > 0.5 + EPS) {
-    rounded = floor + 1;
-  } else if (diff < 0.5 - EPS) {
-    rounded = floor;
-  } else {
-    // tie: 0.5 exacto -> al par
-    rounded = (floor % 2 === 0) ? floor : floor + 1;
-  }
+  if (diff > 0.5 + EPS) rounded = floor + 1;
+  else if (diff < 0.5 - EPS) rounded = floor;
+  else rounded = (floor % 2 === 0) ? floor : floor + 1;
 
   return (sign * rounded) / factor;
 }
 
-/** Parse YYYY-MM-DD (input type=date) -> Date local (sin TZ issues) */
 function parseDateInput(val) {
   if (!val) return null;
   const [y, m, d] = val.split("-").map(Number);
@@ -139,7 +120,6 @@ function parseDateInput(val) {
   return new Date(y, m - 1, d, 0, 0, 0, 0);
 }
 
-/** DateDiff("d", a, b) — igual a VBA para fechas (b - a) en días */
 function dateDiffDays(a, b) {
   const msPerDay = 24 * 60 * 60 * 1000;
   const ua = Date.UTC(a.getFullYear(), a.getMonth(), a.getDate());
@@ -147,13 +127,10 @@ function dateDiffDays(a, b) {
   return Math.floor((ub - ua) / msPerDay);
 }
 
-/** last day of month */
 function lastDayOfMonth(year, monthIndex0) {
-  // monthIndex0: 0..11
   return new Date(year, monthIndex0 + 1, 0).getDate();
 }
 
-/** FechaPagoMes(fechaBase, mesOffset, diaPago) */
 function fechaPagoMes(fechaBase, mesOffset, diaPago) {
   const baseY = fechaBase.getFullYear();
   const baseM = fechaBase.getMonth();
@@ -165,7 +142,6 @@ function fechaPagoMes(fechaBase, mesOffset, diaPago) {
   return new Date(y, m, d, 0, 0, 0, 0);
 }
 
-/** CalcularPrimeraFechaPago(fechaInicio, diaPago, opcionPrimerPago) */
 function calcularPrimeraFechaPago(fechaInicio, diaPago, opcionPrimerPago) {
   const op = normalizarClave(opcionPrimerPago);
 
@@ -179,7 +155,6 @@ function calcularPrimeraFechaPago(fechaInicio, diaPago, opcionPrimerPago) {
   return fechaPagoMes(fechaInicio, 1, diaPago);
 }
 
-/** EsMesDePago(i, freqMeses) */
 function esMesDePago(i, freqMeses) {
   if (freqMeses <= 0) return false;
   return (i % freqMeses) === 0;
@@ -192,19 +167,17 @@ function formatDateDMY(d) {
   return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 function formatMoney(n) {
-  // Solo formato visual, lógica usa números puros
   const x = Number(n);
   if (!isFinite(x)) return "--";
   return x.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function formatPercentEA(tasaEA) {
-  // En VBA: Format(tasaEA, "0.000%") (tasaEA ya es decimal)
   const p = tasaEA * 100;
   return `${p.toFixed(3)}%`;
 }
 
 /* =========================================================
-   LÓGICA FINANCIERA — replica exacta del VBA
+   LÓGICA FINANCIERA — ACTUALIZADA (según tu VBA nuevo)
 ========================================================= */
 function generarCronograma(inputs) {
   const {
@@ -226,7 +199,9 @@ function generarCronograma(inputs) {
   const freqIntMeses = frecuenciaAMeses(frecuenciaInteres, plazo);
   const freqCapMeses = frecuenciaAMeses(frecuenciaCapital, plazo);
 
-  let fechaPagoAnterior = calcularPrimeraFechaPago(fechaInicio, diaPago, opcionPrimerPago);
+  // >>> NUEVO: fechaPagoMes1 (igual a tu VBA)
+  const fechaPagoMes1 = calcularPrimeraFechaPago(fechaInicio, diaPago, opcionPrimerPago);
+  let fechaPagoAnterior = fechaPagoMes1;
 
   // Inicialización
   let saldo = Number(monto);
@@ -249,13 +224,8 @@ function generarCronograma(inputs) {
   for (let i = 0; i <= plazo; i++) {
     const mes = i;
 
-    let pagaInteres;
-    let pagaCapital;
-
     let fechaPago = null;
     let fechaCrono = null;
-
-    // días informativos (VBA lo calcula, pero NO lo imprime en la tabla)
     let diasInfo = 0;
 
     if (i === 0) {
@@ -270,8 +240,7 @@ function generarCronograma(inputs) {
         fechaPagoAnterior = fechaPago;
       }
 
-      // REGLA CLAVE: desde mes 1, Fecha Cronograma = Fecha Pago
-      fechaCrono = fechaPago;
+      fechaCrono = fechaPago; // regla clave
 
       if (i === 1) {
         diasInfo = dateDiffDays(fechaInicio, fechaPago);
@@ -286,18 +255,13 @@ function generarCronograma(inputs) {
     // =========================
     // INTERÉS (solo cuando toca pago)
     // =========================
-    if (i === 0) {
-      pagaInteres = false;
-    } else {
+    let pagaInteres = false;
+    if (i !== 0) {
       mesesDesdeUltPagoInteres = mesesDesdeUltPagoInteres + 1;
 
-      if (freqIntMeses === 1) {
-        pagaInteres = true;
-      } else if (esMesDePago(mes, freqIntMeses) || mes === plazo) {
-        pagaInteres = true;
-      } else {
-        pagaInteres = false;
-      }
+      if (freqIntMeses === 1) pagaInteres = true;
+      else if (esMesDePago(mes, freqIntMeses) || mes === plazo) pagaInteres = true;
+      else pagaInteres = false;
     }
 
     let diasInteres = 0;
@@ -306,31 +270,50 @@ function generarCronograma(inputs) {
     let impuesto = 0;
     let interesDepositar = 0;
 
+    // >>> BLOQUE ACTUALIZADO (idéntico a tu VBA nuevo)
     if (pagaInteres) {
       if (pagosInteresCont === 0) {
-        diasInteres = dateDiffDays(fechaInicio, fechaPago);
+
+        if (freqIntMeses === 1) {
+          // Mensual: primer pago = días reales inicio -> fechaPago
+          diasInteres = dateDiffDays(fechaInicio, fechaPago);
+        } else {
+          // NO mensual:
+          // (días reales del 1er mes) + 30*(meses restantes del periodo)
+          diasInteres = dateDiffDays(fechaInicio, fechaPagoMes1) + 30 * (mesesDesdeUltPagoInteres - 1);
+        }
+
         if (diasInteres < 0) diasInteres = 0;
+
       } else {
+        // Pagos siguientes: 30 por mes acumulado (incluye remanentes)
         diasInteres = 30 * mesesDesdeUltPagoInteres;
       }
 
-      interesBrutoPago = ((Math.pow(1 + tasaEA, diasInteres / 360) - 1) * saldo);
+      interesBrutoPago = (Math.pow(1 + tasaEA, (diasInteres / 360)) - 1) * saldo;
       interesBrutoPago = vbaRound(interesBrutoPago, 2);
 
       impuesto = vbaRound(interesBrutoPago * TASA_IMPUESTO_2DA, 2);
       interesDepositar = vbaRound(interesBrutoPago - impuesto, 2);
 
       interesMes = interesBrutoPago;
+
       pagosInteresCont = pagosInteresCont + 1;
       mesesDesdeUltPagoInteres = 0;
+
+    } else {
+      diasInteres = 0;
+      interesMes = 0;
+      interesBrutoPago = 0;
+      impuesto = 0;
+      interesDepositar = 0;
     }
 
     // =========================
     // CAPITAL
     // =========================
-    if (i === 0) {
-      pagaCapital = false;
-    } else {
+    let pagaCapital = false;
+    if (i !== 0) {
       if (normalizarClave(frecuenciaCapital) === "AL FINALIZAR") {
         pagaCapital = (mes === plazo);
       } else {
@@ -355,13 +338,8 @@ function generarCronograma(inputs) {
     }
 
     const totalDepositar = vbaRound(interesDepositar + devolucionCapital, 2);
-
-    // Monto base (E): Round(saldo + devolucionCapital, 2)
     const montoBase = vbaRound(saldo + devolucionCapital, 2);
 
-    // Columna D (Días) según VBA:
-    // i=0 => "--"
-    // else => IIf(pagaInteres, diasInteres, "--")
     const diasCol = (i === 0) ? "--" : (pagaInteres ? diasInteres : "--");
 
     rows.push({
@@ -377,14 +355,12 @@ function generarCronograma(inputs) {
       saldo,
       totalDepositar,
 
-      // No se imprime en la tabla del VBA, pero lo conservamos por trazabilidad
       _diasInfo: diasInfo,
       _pagaInteres: pagaInteres,
       _pagaCapital: pagaCapital
     });
   }
 
-  // Totales (como VBA): sum H, I, K (desde filaIni..ultimaFila incluyendo mes 0)
   const totalInteresDepositar = vbaRound(rows.reduce((acc, r) => acc + Number(r.interesDepositar || 0), 0), 2);
   const totalDevolucionCapital = vbaRound(rows.reduce((acc, r) => acc + Number(r.devolucionCapital || 0), 0), 2);
   const totalTotalDepositar = vbaRound(rows.reduce((acc, r) => acc + Number(r.totalDepositar || 0), 0), 2);
@@ -405,52 +381,43 @@ function generarCronograma(inputs) {
 }
 
 /* =========================================================
-   VALIDACIONES — equivalentes al VBA (mensajes en español)
+   VALIDACIONES — equivalentes al VBA
 ========================================================= */
 function validateInputs(raw) {
   const errors = {};
 
-  // Fecha válida
   if (!(raw.fechaInicio instanceof Date) || isNaN(raw.fechaInicio.getTime())) {
     errors.fechaInicio = "La fecha de inicio no es una fecha válida.";
   }
 
-  // Monto > 0
   if (raw.monto === "" || raw.monto === null || raw.monto === undefined || !isFinite(Number(raw.monto)) || Number(raw.monto) <= 0) {
     errors.monto = "El monto debe ser numérico y mayor a 0.";
   }
 
-  // Moneda válida (no vacía)
   const mon = monedaSimbolo(raw.monedaRaw);
   if (!String(mon).trim()) {
     errors.moneda = "La moneda está vacía. Usa S/ o $.";
   }
 
-  // Tasa numérica
   if (raw.tasaEA_pct === "" || raw.tasaEA_pct === null || raw.tasaEA_pct === undefined || !isFinite(Number(raw.tasaEA_pct))) {
     errors.tasaEA = "La tasa debe ser numérica.";
   }
 
-  // Plazo > 0
   if (raw.plazo === "" || raw.plazo === null || raw.plazo === undefined || !Number.isFinite(Number(raw.plazo)) || Number(raw.plazo) <= 0) {
     errors.plazo = "El plazo (meses) debe ser numérico y mayor a 0.";
   }
 
-  // Producto no vacío
   if (!String(raw.producto || "").trim()) {
     errors.producto = "El producto está vacío.";
   }
 
-  // Frecuencias no vacías
   if (!String(raw.frecuenciaInteres || "").trim()) {
     errors.freqInteres = "La frecuencia de intereses está vacía.";
   }
+
   if (!String(raw.frecuenciaCapital || "").trim()) {
     errors.freqCapital = "La devolución de capital está vacía.";
   }
-
-  // Opción primer pago: si vacío => "Próximo mes" (como VBA)
-  // (no es error)
 
   return errors;
 }
@@ -485,13 +452,11 @@ function showErrors(errors) {
   const entries = Object.entries(errors);
   if (entries.length === 0) return;
 
-  // per-field
   for (const [key, msg] of entries) {
     const el = document.querySelector(`[data-error-for="${key}"]`);
     if (el) el.textContent = msg;
   }
 
-  // summary
   errorSummaryList.innerHTML = "";
   for (const [, msg] of entries) {
     const li = document.createElement("li");
@@ -518,8 +483,8 @@ function readForm() {
 }
 
 function renderResult(inputs, result, generatedAt) {
-  // Summary card
   resumen.hidden = false;
+
   sumTA.textContent = formatPercentEA(result.tasaEA);
   sumMonto.textContent = `${result.moneda} ${formatMoney(Number(inputs.monto))}`;
   sumProducto.textContent = inputs.producto;
@@ -527,7 +492,6 @@ function renderResult(inputs, result, generatedAt) {
   sumFreqInt.textContent = inputs.frecuenciaInteres;
   sumFreqCap.textContent = inputs.frecuenciaCapital;
 
-  // Table headers with currency
   thMontoBase.textContent = `Monto base (${result.moneda})`;
   thIntBruto.textContent = `Interés bruto (${result.moneda})`;
   thImpuesto.textContent = `Impuesto 2da categ. (${result.moneda})`;
@@ -536,7 +500,6 @@ function renderResult(inputs, result, generatedAt) {
   thSaldo.textContent = `Saldo capital (${result.moneda})`;
   thTotal.textContent = `Total a depositar (${result.moneda})`;
 
-  // Body
   tbody.innerHTML = "";
   for (const r of result.rows) {
     const tr = document.createElement("tr");
@@ -564,11 +527,8 @@ function renderResult(inputs, result, generatedAt) {
     tbody.appendChild(tr);
   }
 
-  // Footer totals (como VBA)
   tfoot.innerHTML = "";
   const trTot = document.createElement("tr");
-
-  // 11 columnas: "Total:" en col 1, vacías 2..7, totales en H (8), I (9), K (11)
   const footerCells = new Array(11).fill("");
   footerCells[0] = "Total:";
   footerCells[7] = formatMoney(result.totals.interesDepositar);
@@ -580,14 +540,12 @@ function renderResult(inputs, result, generatedAt) {
     td.textContent = val;
     trTot.appendChild(td);
   });
-
   tfoot.appendChild(trTot);
 
   tableWrap.hidden = false;
   emptyState.hidden = true;
   btnPdf.disabled = false;
 
-  // update generatedAt in header (for the current run)
   elGeneratedAt.textContent = formatDateTime(generatedAt);
 }
 
@@ -600,18 +558,14 @@ async function loadLogoToUI() {
 }
 
 async function fetchLogoAsDataURL() {
-  // Intento 1: fetch blob -> FileReader (requiere CORS ok)
   try {
     const res = await fetch(LOGO_URL, { mode: "cors", cache: "no-store" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
-    const dataUrl = await blobToDataURL(blob);
-    return dataUrl;
+    return await blobToDataURL(blob);
   } catch (_) {
-    // Intento 2: usar <img> + canvas (también depende CORS)
     try {
-      const dataUrl = await imgUrlToDataURLViaCanvas(LOGO_URL);
-      return dataUrl;
+      return await imgUrlToDataURLViaCanvas(LOGO_URL);
     } catch (e2) {
       return null;
     }
@@ -632,14 +586,13 @@ function imgUrlToDataURLViaCanvas(url) {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      try{
+      try {
         const canvas = document.createElement("canvas");
         canvas.width = img.naturalWidth || img.width;
         canvas.height = img.naturalHeight || img.height;
         const ctx = canvas.getContext("2d");
         ctx.drawImage(img, 0, 0);
-        const dataUrl = canvas.toDataURL("image/png");
-        resolve(dataUrl);
+        resolve(canvas.toDataURL("image/png"));
       } catch (e) {
         reject(e);
       }
@@ -675,14 +628,10 @@ async function exportPDF(state) {
   const pageW = doc.internal.pageSize.getWidth();
   const margin = 28;
 
-  // Header (membrete)
   const headerY = 28;
 
   if (logoDataUrl) {
-    // logo a la izquierda
-    const logoW = 46;
-    const logoH = 46;
-    doc.addImage(logoDataUrl, "PNG", margin, headerY, logoW, logoH);
+    doc.addImage(logoDataUrl, "PNG", margin, headerY, 46, 46);
   }
 
   const xText = margin + (logoDataUrl ? 58 : 0);
@@ -699,11 +648,11 @@ async function exportPDF(state) {
   doc.text(`Generado: ${formatDateTime(generatedAt)}`, pageW - margin, headerY + 18, { align: "right" });
   doc.setTextColor(0);
 
-  // Summary "tarjeta"
   const sumTop = headerY + 62;
   const boxH = 74;
+
+  doc.setFillColor(15, 23, 42);
   doc.setDrawColor(220);
-  doc.setFillColor(15, 23, 42); // oscuro tipo PDF del VBA
   doc.roundedRect(margin, sumTop, pageW - margin * 2, boxH, 10, 10, "F");
 
   doc.setTextColor(255);
@@ -711,22 +660,19 @@ async function exportPDF(state) {
   doc.setFontSize(10);
 
   const moneda = result.moneda;
-  const tasaEA = result.tasaEA;
   const plazoDias = Number(inputs.plazo) * 30;
 
-  // layout de 4 columnas (similar al VBA)
   const colW = (pageW - margin * 2) / 4;
   const row1Y = sumTop + 22;
   const row2Y = sumTop + 50;
 
-  // labels
   doc.text("TA:", margin + colW * 0 + 14, row1Y);
   doc.text("Monto Invertido", margin + colW * 1 + 14, row1Y);
   doc.text("Producto", margin + colW * 2 + 14, row1Y);
   doc.text("Plazo", margin + colW * 3 + 14, row1Y);
 
   doc.setFont("helvetica", "normal");
-  doc.text(formatPercentEA(tasaEA), margin + colW * 0 + 14, row1Y + 14);
+  doc.text(formatPercentEA(result.tasaEA), margin + colW * 0 + 14, row1Y + 14);
   doc.text(`${moneda} ${formatMoney(Number(inputs.monto))}`, margin + colW * 1 + 14, row1Y + 14);
   doc.text(String(inputs.producto), margin + colW * 2 + 14, row1Y + 14);
   doc.text(`${plazoDias} Días`, margin + colW * 3 + 14, row1Y + 14);
@@ -743,7 +689,6 @@ async function exportPDF(state) {
 
   doc.setTextColor(0);
 
-  // Table
   const head = [[
     "Mes",
     "Fecha de cronograma (1)",
@@ -772,7 +717,6 @@ async function exportPDF(state) {
     formatMoney(r.totalDepositar),
   ]));
 
-  // Footer totals row (solo H, I, K)
   const foot = [[
     "Total:",
     "", "", "",
@@ -783,7 +727,6 @@ async function exportPDF(state) {
     formatMoney(result.totals.totalDepositar),
   ]];
 
-  // AutoTable: forzar que quepa a lo ancho (A4 landscape)
   doc.autoTable({
     head,
     body,
@@ -812,8 +755,6 @@ async function exportPDF(state) {
     },
     alternateRowStyles: { fillColor: [250, 251, 252] },
     tableWidth: "auto",
-    // Reduce si fuera necesario:
-    didDrawPage: () => {},
   });
 
   doc.save(buildPdfFileName(generatedAt));
@@ -828,8 +769,6 @@ form.addEventListener("submit", async (e) => {
   clearFieldErrors();
 
   const raw = readForm();
-
-  // VBA: si opcionPrimerPago vacío => "Próximo mes"
   if (!String(raw.opcionPrimerPago || "").trim()) raw.opcionPrimerPago = "Próximo mes";
 
   const errors = validateInputs(raw);
@@ -853,18 +792,13 @@ form.addEventListener("submit", async (e) => {
   };
 
   const generatedAt = new Date();
-
-  // Generar (replica VBA)
   const result = generarCronograma(inputs);
 
-  // Logo embebido (para PDF)
   const logoDataUrl = await fetchLogoAsDataURL();
   logoWarning.hidden = !!logoDataUrl;
 
-  // Render
   renderResult(inputs, result, generatedAt);
 
-  // State
   lastResult = { inputs, result, generatedAt, logoDataUrl };
 });
 
@@ -890,7 +824,6 @@ btnPdf.addEventListener("click", async () => {
 /* =========================================================
    Defaults (solo visuales para probar rápido)
 ========================================================= */
-// Puedes comentar esto si no quieres valores por defecto.
 (function setDefaults() {
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -921,3 +854,4 @@ btnPdf.addEventListener("click", async () => {
   const elOP = document.getElementById("opcionPrimerPago");
   if (!elOP.value) elOP.value = "Próximo mes";
 })();
+
